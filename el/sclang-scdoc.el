@@ -165,9 +165,11 @@ of the file implementing it."
            (when class-file
              (widget-insert "Source: ")
              (widget-create
-              'file-link
-              :tag (file-name-nondirectory class-file)
-              class-file)
+              'push-button
+              :tag "Definitions"
+              :action (lambda (widget _event)
+			(sclang-perform-command 'classDefinitions (widget-value widget)))
+	      (symbol-name sclang-scdoc-class))
              (widget-insert "\n\n")))
 
          (mapc #'sclang-scdoc-insert body)
@@ -193,6 +195,7 @@ of the file implementing it."
 
 (define-widget 'scdoc-codeblock 'text
   "A multiline codeblock."
+  :format "%v"
   :keymap scdoc-codeblock-keymap)
 
 (defconst sclang-scdoc-ignore
@@ -353,7 +356,7 @@ of the file implementing it."
     (mapc #'sclang-scdoc-insert children)))
 
 (defun sclang-scdoc-NL (_text &rest _children)
-  (widget-insert "\n"))
+  (sclang-scdoc-ensure-blank-line))
 
 (defun sclang-scdoc-NOTE (_text &rest children)
   (widget-insert "NOTE: ")
