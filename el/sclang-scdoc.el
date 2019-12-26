@@ -34,6 +34,7 @@
 
 (require 'sclang-interp)
 (require 'sclang-language)
+(require 'sclang-widgets)
 (require 'wid-browse)
 
 (defvar-local sclang-scdoc-source-path nil
@@ -137,7 +138,7 @@ of the file implementing it."
     (`(,source-path (,metaclass ,class) (DOCUMENT nil (HEADER nil . ,header) (BODY nil . ,body)))
      (let ((title (car-safe (cdr (assq 'TITLE header))))
            (summary (car-safe (cdr (assq 'SUMMARY header)))))
-       (with-current-buffer (get-buffer-create (format "*SCDoc:%s*" title))
+       (with-current-buffer (get-buffer-create (format "*SCDoc:%s*" topic))
          (let ((inhibit-read-only t)
                (inhibit-modification-hooks t))
            (delete-all-overlays) (erase-buffer))
@@ -176,7 +177,8 @@ of the file implementing it."
 
          (widget-setup)
          (goto-char (point-min))
-         (switch-to-buffer (current-buffer)))))))
+         (switch-to-buffer (current-buffer))
+	 (redisplay))))))
 
 (defvar scdoc-codeblock-keymap
   (let ((map (copy-keymap widget-text-keymap)))
@@ -207,7 +209,8 @@ of the file implementing it."
     (let ((handler (intern-soft (format "sclang-scdoc-%S" (car node)))))
       (if handler
 	  (apply handler (cdr node))
-	(widget-insert (format "%S" node))))))
+	(widget-insert (format "%S" node))
+	(cl-pushnew (current-buffer) sclang-scdoc-incomplete)))))
 
 (defun sclang-scdoc-ARGUMENTS (text &rest children)
   (cl-assert (null text))
@@ -223,6 +226,12 @@ of the file implementing it."
   (widget-insert "# Class Methods\n\n")
   (mapc #'sclang-scdoc-insert children)
   (sclang-scdoc-ensure-blank-line))
+
+(defun sclang-scdoc-CLASSTREE (class-name &rest children)
+  (widget-create
+   'sclang-class-tree
+   :tag class-name
+   :open t))
 
 (defun sclang-scdoc-CMETHOD (_text &rest children)
   (pcase children
@@ -257,6 +266,14 @@ of the file implementing it."
 
 (defun sclang-scdoc-DEFINITIONLIST (_text &rest children)
   (mapc #'sclang-scdoc-insert children))
+
+(defun sclang-scdoc-DEFINITION (_text &rest children)
+  (mapc #'sclang-scdoc-insert children)
+  (when (not (bolp)) (widget-insert "\n")))
+
+(defun sclang-scdoc-DEFLISTITEM (_text &rest children)
+  (mapc #'sclang-scdoc-insert children)
+  (sclang-scdoc-ensure-blank-line))
 
 (defun sclang-scdoc-DESCRIPTION (_text &rest children)
   (sclang-scdoc-ensure-blank-line)
@@ -420,6 +437,11 @@ of the file implementing it."
   (widget-insert "\n")
   (widget-insert string)
   (widget-insert "\n"))
+
+(defun sclang-scdoc-TERM (_text &rest children)
+  (mapc #'sclang-scdoc-insert children)
+  (when (not (bolp)) (widget-insert "\n"))
+  (widget-insert "\t"))
 
 (defun sclang-scdoc-TEXT (text)
   (widget-insert text))
