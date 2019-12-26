@@ -61,11 +61,11 @@ If INSTANCE is non-nil, METHOD is assumed to refer to an instance method."
       (cdr
        (sclang-eval-sync
         (sclang-format
-         "var method = %o.asClass.findRespondingMethodFor(%o.asGetter);
+         "var method = %o.asClass.findRespondingMethodFor(%o.asSymbol.asGetter);
           method.argNames.collect{|n, i|
               Association.new(n, method.prototypeFrame[i] !? _.asCompileString)
           }"
-         class method))))))
+         class (symbol-name method)))))))
 
 (defun sclang-scdoc-superclasses ()
   "Fetch the list of superclasses.
@@ -214,7 +214,7 @@ of the file implementing it."
   (mapc #'sclang-scdoc-insert children))
 
 (defun sclang-scdoc-ARGUMENT (name &rest children)
-  (widget-insert name "\n\t")
+  (when name (widget-insert name "\n\t"))
   (mapc #'sclang-scdoc-insert children)
   (sclang-scdoc-ensure-blank-line))
 
@@ -284,11 +284,13 @@ of the file implementing it."
       (pcase (split-string string "#")
 	(`(,image) (list image image))
 	(`(,image ,title) (list image title)))
-    (insert-image
-     (create-image
-      (expand-file-name image (file-name-directory sclang-scdoc-source-path)))
-     title)))
-
+    (if (display-images-p)
+	(insert-image
+	 (create-image
+	  (expand-file-name image (file-name-directory sclang-scdoc-source-path)))
+	 title)
+      (widget-insert title))))
+  
 (defun sclang-scdoc-IMETHOD (_text &rest children)
   (pcase children
     (`((METHODNAMES nil . ,names) (METHODBODY nil . ,body))
@@ -330,7 +332,7 @@ of the file implementing it."
       (pcase (split-string string "#")
         (`(,document) (list document "" ""))
         (`(,document ,anchor) (list document anchor ""))
-        (`(,document ,anchor ,title) (list document anchor title)))
+        (`(,document ,anchor ,title . ,ignored) (list document anchor title)))
     (if (string-match "\\`\\(https?\\|ftp\\|file\\)://" document)
 	(widget-create 'url-link document)
       (let ((title
@@ -367,11 +369,22 @@ of the file implementing it."
   (let ((sclang-scdoc-bullet 1))
     (mapc #'sclang-scdoc-insert children)))
 
+(defun sclang-scdoc-METHOD (args &rest children)
+  (pcase children
+    (`((METHODNAMES nil . ,names) (METHODBODY nil . ,body))
+     (sclang-scdoc-ensure-blank-line)
+     (dolist (method-name (mapcar (lambda (arg) (intern (cadr arg))) names))
+       (widget-insert (symbol-name method-name))
+       (when args (widget-insert args))
+       (widget-insert "\n"))
+     (mapc #'sclang-scdoc-insert body))))
+
 (defun sclang-scdoc-PROSE (_text &rest children)
   (let ((begin (point)))
     (mapc #'sclang-scdoc-insert children)
     (widget-insert "\n")
-    (fill-region begin (point))))
+    (fill-region begin (point))
+    (sclang-scdoc-ensure-blank-line)))
 
 (defun sclang-scdoc-RETURNS (_text &rest children)
   (sclang-scdoc-ensure-blank-line)
